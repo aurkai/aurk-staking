@@ -1,4 +1,3 @@
-
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
@@ -24,64 +23,77 @@ contract AurkStaking is Ownable, ReentrancyGuard {
     
     /// @notice Unstaking fee in basis points (100 = 1%)
     uint256 public unstakingFee = 100;
-    
-    /// @notice Minimum amount required to stake
-    uint256 public minimumStake = 0.1 ether;
+
 
     /// @notice Mapping of user addresses to their staked amounts
     mapping(address => uint256) public stakes;
-    
+
     /// @notice Total amount of tokens currently staked
     uint256 public totalStaked;
 
     // Owner funds tracking
     /// @notice Total fees collected by the owner
     uint256 public ownerFeesCollected;
-    
+
     /// @notice Total rewards deposited by the owner
     uint256 public ownerRewardDeposits;
-    
+
     /// @notice Total amount withdrawn by the owner
     uint256 public ownerWithdrawals;
-    
+
     // User rewards tracking
     /// @notice Mapping of user addresses to their total claimed rewards
     mapping(address => uint256) public claimedRewards;
-    
+
     /// @notice Total rewards claimed by all users
     uint256 public totalRewardsClaimed;
 
     // Program parameters
     /// @notice Duration of the staking program (365 days)
     uint256 public constant STAKING_DURATION = 365 days;
-    
+
     /// @notice Timestamp when the staking program started
     uint256 public programStartTime;
-    
+
     /// @notice Timestamp when the staking program ends
     uint256 public programEndTime;
-    
+
     /// @notice Total budget allocated for rewards
-    uint256 public totalRewardBudget = 48000 ether;
-    
+    uint256 public totalRewardBudget = 100_000 ether;
+
     /// @notice Last time rewards were updated
     uint256 public lastUpdateTime;
-    
+
     /// @notice Stored reward per token value
     uint256 public rewardPerTokenStored;
-    
+
     /// @notice Whether staking is currently enabled
     bool public stakingEnabled = true;
-    
+
     /// @notice Whether the staking program is currently active
     bool public programActive = false;
 
     // Reward calculation mappings
     /// @notice Mapping of user addresses to their paid reward per token
     mapping(address => uint256) public userRewardPerTokenPaid;
-    
+
     /// @notice Mapping of user addresses to their pending rewards
     mapping(address => uint256) public pendingRewards;
+
+     /// @notice Maximum minimum stake (100,000 tokens)
+    uint256 public constant MAX_MINIMUM_STAKE = 100_000 ether;
+
+    /// @notice Minimum minimum stake (0.01 tokens)
+    uint256 public constant MIN_MINIMUM_STAKE = 0.01 ether;
+
+    /// @notice Minimum amount required to stake
+    uint256 public minimumStake = MIN_MINIMUM_STAKE;
+
+    /// @notice Maximum total reward budget (1 million tokens)
+    uint256 public constant MAX_TOTAL_REWARD_BUDGET = 1_000_000 ether;
+
+    /// @notice Minimum total reward budget (1000 tokens)
+    uint256 public constant MIN_TOTAL_REWARD_BUDGET = 1_000 ether;
 
     // ============ EVENTS ============
     
@@ -214,6 +226,8 @@ contract AurkStaking is Ownable, ReentrancyGuard {
      * @param _minimumStake New minimum stake amount
      */
     function setMinimumStake(uint256 _minimumStake) external onlyOwner {
+        require(_minimumStake >= MIN_MINIMUM_STAKE, "Minimum stake too low");
+        require(_minimumStake <= MAX_MINIMUM_STAKE, "Minimum stake too high");
         minimumStake = _minimumStake;
     }
 
@@ -224,6 +238,8 @@ contract AurkStaking is Ownable, ReentrancyGuard {
      */
     function setTotalRewardBudget(uint256 _totalRewardBudget) external onlyOwner validAmount(_totalRewardBudget) {
         require(!programActive, "Cannot change budget while program is active");
+        require(_totalRewardBudget >= MIN_TOTAL_REWARD_BUDGET, "Total reward budget too low");
+        require(_totalRewardBudget <= MAX_TOTAL_REWARD_BUDGET, "Total reward budget too high");
         totalRewardBudget = _totalRewardBudget;
     }
 
@@ -288,16 +304,6 @@ contract AurkStaking is Ownable, ReentrancyGuard {
         ownerWithdrawals += amount;
         require(token.transfer(owner(), amount), "Emergency transfer failed");
         emit EmergencyWithdrawal(owner(), amount);
-    }
-
-    /**
-     * @dev Emergency withdrawal of all contract funds
-     * @notice Withdraws entire contract balance to owner
-     */
-    function emergencyWithdrawAll() external onlyOwner nonReentrant {
-        uint256 contractBalance = token.balanceOf(address(this));
-        require(token.transfer(owner(), contractBalance), "Emergency transfer failed");
-        emit EmergencyWithdrawal(owner(), contractBalance);
     }
 
     // ============ USER FUNCTIONS ============
